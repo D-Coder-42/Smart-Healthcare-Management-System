@@ -5,10 +5,12 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.chart.*;
 import javafx.stage.Stage;
+import javafx.stage.Modality;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import javafx.beans.property.SimpleStringProperty;
@@ -64,15 +66,25 @@ class Patient {
     private final javafx.beans.property.ObjectProperty<LocalDate> dateOfBirth;
     private final javafx.beans.property.StringProperty contactInfo;
     private final javafx.beans.property.StringProperty medicalHistory;
+    private final javafx.beans.property.StringProperty patientId; // Changed to StringProperty
 
     public Patient(String name, LocalDate dateOfBirth, String contactInfo, String medicalHistory) {
         this.name = new javafx.beans.property.SimpleStringProperty(name);
         this.dateOfBirth = new javafx.beans.property.SimpleObjectProperty<>(dateOfBirth);
         this.contactInfo = new javafx.beans.property.SimpleStringProperty(contactInfo);
         this.medicalHistory = new javafx.beans.property.SimpleStringProperty(medicalHistory);
+        this.patientId = new javafx.beans.property.SimpleStringProperty(generatePatientId());
     }
 
-    // Add getters for ComboBox display
+    public Patient(String patientId, String name, LocalDate dateOfBirth, String contactInfo, String medicalHistory) {
+        this.patientId = new javafx.beans.property.SimpleStringProperty(patientId);
+        this.name = new javafx.beans.property.SimpleStringProperty(name);
+        this.dateOfBirth = new javafx.beans.property.SimpleObjectProperty<>(dateOfBirth);
+        this.contactInfo = new javafx.beans.property.SimpleStringProperty(contactInfo);
+        this.medicalHistory = new javafx.beans.property.SimpleStringProperty(medicalHistory);
+    }
+
+    // Existing methods
     public String getName() {
         return name.get();
     }
@@ -93,6 +105,32 @@ class Patient {
         return medicalHistory;
     }
 
+    public javafx.beans.property.StringProperty patientIdProperty() {
+        return patientId;
+    }
+
+    // Add new getter methods
+    public String getPatientId() {
+        return patientId.get();
+    }
+
+    public LocalDate getDateOfBirth() {
+        return dateOfBirth.get();
+    }
+
+    public String getContactInfo() {
+        return contactInfo.get();
+    }
+
+    public String getMedicalHistory() {
+        return medicalHistory.get();
+    }
+
+    private String generatePatientId() {
+        // Simple ID generation - you might want to implement a more sophisticated system
+        return "P" + System.currentTimeMillis() % 10000;
+    }
+
     @Override
     public String toString() {
         return getName(); // For ComboBox display
@@ -104,13 +142,29 @@ class PatientManagementView extends VBox {
     private final DatePicker dateOfBirthPicker;
     private final TextField contactInfoField;
     private final TextArea medicalHistoryArea;
+    private final TextField patientIdField;
     private final TableView<Patient> patientTable;
     private final ObservableList<Patient> patients;
-
+    private final String SYSTEM_PASSWORD = "javaFX_24";
+    
+    private final TextField searchField;
+    private final ComboBox<String> searchCriteriaBox;
+    private Patient currentEditingPatient;
+    private Button addUpdateButton;
+    
     public PatientManagementView(ObservableList<Patient> patients) {
         this.patients = patients;
         
-        // Initialize components
+        // Initialize search components
+        searchField = new TextField();
+        searchField.setPromptText("Enter search term...");
+        searchCriteriaBox = new ComboBox<>();
+        searchCriteriaBox.getItems().addAll("ID", "Name", "Contact Info");
+        searchCriteriaBox.setValue("Name");
+        
+        // Initialize input components
+        patientIdField = new TextField();
+        patientIdField.setPromptText("Leave empty for auto-generated ID");
         nameField = new TextField();
         dateOfBirthPicker = new DatePicker();
         contactInfoField = new TextField();
@@ -120,66 +174,401 @@ class PatientManagementView extends VBox {
         patientTable = new TableView<>();
         setupPatientTable();
         
-        // Layout
-        GridPane inputGrid = createInputGrid();
-        Button addButton = new Button("Add Patient");
-        addButton.setOnAction(e -> addPatient());
+        addUpdateButton = new Button("Add Patient");
+        addUpdateButton.setOnAction(e -> handleAdd());
         
-        getChildren().addAll(inputGrid, addButton, patientTable);
+        // Layout
+        HBox searchBox = createSearchBox();
+        GridPane inputGrid = createInputGrid();
+        HBox buttonBox = new HBox(10, addUpdateButton);
+        
+        getChildren().addAll(searchBox, inputGrid, buttonBox, patientTable);
         setSpacing(10);
         setPadding(new Insets(10));
+        
+        // Add search listener
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> performSearch());
+    }
+    
+    // Removed duplicate showPatientInformation method
+    
+    private void viewPatientInformation(Patient patient) {
+        Stage infoStage = new Stage();
+        infoStage.initModality(Modality.APPLICATION_MODAL);
+        infoStage.setTitle("Patient Information");
+        
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(15));
+        
+        // Create editable fields
+        TextField nameField = new TextField(patient.getName());
+        DatePicker dobPicker = new DatePicker(patient.getDateOfBirth());
+        TextField contactField = new TextField(patient.getContactInfo());
+        TextArea historyArea = new TextArea(patient.getMedicalHistory());
+        historyArea.setPrefRowCount(5);
+        historyArea.setWrapText(true);
+        
+        // Initially set fields as non-editable
+        nameField.setEditable(false);
+        dobPicker.setEditable(false);
+        contactField.setEditable(false);
+        historyArea.setEditable(false);
+        
+        Button editButton = new Button("Edit");
+        editButton.setOnAction(e -> showPasswordDialogForEdit(nameField, dobPicker, 
+                                                            contactField, historyArea));
+        
+        Button saveButton = new Button("Save Changes");
+        saveButton.setDisable(true);
+        saveButton.setOnAction(e -> {
+            updatePatient(patient, nameField.getText(), dobPicker.getValue(),
+                        contactField.getText(), historyArea.getText());
+            infoStage.close();
+        });
+        
+        Button closeButton = new Button("Close");
+        closeButton.setOnAction(e -> infoStage.close());
+        
+        HBox buttonBox = new HBox(10, editButton, saveButton, closeButton);
+        
+        content.getChildren().addAll(
+            new Label("Patient ID: " + patient.getPatientId()),
+            new Label("Name:"), nameField,
+            new Label("Date of Birth:"), dobPicker,
+            new Label("Contact:"), contactField,
+            new Label("Medical History:"), historyArea,
+            buttonBox
+        );
+        
+        Scene scene = new Scene(content);
+        infoStage.setScene(scene);
+        infoStage.showAndWait();
     }
 
+    // Removed duplicate createInputGrid method
+    
     private void setupPatientTable() {
+        // ID column
+        TableColumn<Patient, String> idCol = new TableColumn<>("ID");
+        idCol.setCellValueFactory(cellData -> cellData.getValue().patientIdProperty());
+        
+        // Name column
         TableColumn<Patient, String> nameCol = new TableColumn<>("Name");
         nameCol.setCellValueFactory(cellData -> cellData.getValue().nameProperty());
         
+        // Date of Birth column
         TableColumn<Patient, LocalDate> dobCol = new TableColumn<>("Date of Birth");
         dobCol.setCellValueFactory(cellData -> cellData.getValue().dateOfBirthProperty());
         
+        // Contact Info column
         TableColumn<Patient, String> contactCol = new TableColumn<>("Contact Info");
         contactCol.setCellValueFactory(cellData -> cellData.getValue().contactInfoProperty());
         
-        patientTable.getColumns().addAll(nameCol, dobCol, contactCol);
+        // Actions column
+        TableColumn<Patient, Void> actionsCol = new TableColumn<>("Actions");
+        actionsCol.setCellFactory(column -> {
+            return new TableCell<>() {
+                private final Button viewButton = new Button("View");
+                
+                {
+                    viewButton.setOnAction(event -> {
+                        Patient patient = getTableView().getItems().get(getIndex());
+                        showPasswordDialog(patient);
+                    });
+                    
+                    setGraphic(viewButton);
+                }
+                
+                @Override
+                protected void updateItem(Void item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setGraphic(empty ? null : getGraphic());
+                }
+            };
+        });
+        
+        // Add columns directly to the table
+        patientTable.getColumns().addAll(idCol, nameCol, dobCol, contactCol, actionsCol);
         patientTable.setItems(patients);
     }
-
+    
+    private void handleAdd() {
+        String name = nameField.getText().trim();
+        LocalDate dob = dateOfBirthPicker.getValue();
+        String contactInfo = contactInfoField.getText().trim();
+        String medicalHistory = medicalHistoryArea.getText().trim();
+        String customId = patientIdField.getText().trim();
+        
+        if (name.isEmpty() || dob == null || contactInfo.isEmpty()) {
+            showAlert("Error", "Please fill in all required fields.", Alert.AlertType.ERROR);
+            return;
+        }
+        
+        // Check for duplicate patient
+        Optional<Patient> existingPatient = findExistingPatient(name, dob);
+        if (existingPatient.isPresent()) {
+            showAlert("Duplicate Patient", 
+                     "A patient with this name and date of birth already exists.",
+                     Alert.AlertType.WARNING);
+            return;
+        }
+        
+        // Check if custom ID is already in use
+        if (!customId.isEmpty() && patients.stream()
+                .anyMatch(p -> p.getPatientId().equals(customId))) {
+            showAlert("Error", "This Patient ID is already in use.", Alert.AlertType.ERROR);
+            return;
+        }
+        
+        // Add new patient with custom or generated ID
+        Patient newPatient = customId.isEmpty() ? 
+            new Patient(name, dob, contactInfo, medicalHistory) :
+            new Patient(customId, name, dob, contactInfo, medicalHistory);
+        
+        patients.add(newPatient);
+        showAlert("Success", "Patient added successfully.", Alert.AlertType.INFORMATION);
+        clearInputFields();
+    }
+    
+    private void showPasswordDialogForEdit(TextField nameField, DatePicker dobPicker,
+                                         TextField contactField, TextArea historyArea) {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Authentication Required");
+        dialog.setHeaderText("Please enter password to edit patient information");
+        
+        ButtonType loginButtonType = new ButtonType("Login", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(loginButtonType, ButtonType.CANCEL);
+        
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        
+        VBox content = new VBox(10);
+        content.getChildren().addAll(new Label("Password:"), passwordField);
+        dialog.getDialogPane().setContent(content);
+        
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == loginButtonType) {
+                return passwordField.getText();
+            }
+            return null;
+        });
+        
+        Optional<String> result = dialog.showAndWait();
+        result.ifPresent(password -> {
+            if (password.equals(SYSTEM_PASSWORD)) {
+                enableEditing(nameField, dobPicker, contactField, historyArea);
+            } else {
+                showAlert("Error", "Incorrect password!", Alert.AlertType.ERROR);
+            }
+        });
+    }
+    
+    private void enableEditing(TextField nameField, DatePicker dobPicker,
+                             TextField contactField, TextArea historyArea) {
+        nameField.setEditable(true);
+        dobPicker.setEditable(true);
+        contactField.setEditable(true);
+        historyArea.setEditable(true);
+        
+        // Find the save button and enable it
+        Scene scene = nameField.getScene();
+        Button saveButton = (Button) scene.lookup("Button:contains('Save Changes')");
+        if (saveButton != null) {
+            saveButton.setDisable(false);
+        }
+    }
+    
+    private void updatePatient(Patient patient, String name, LocalDate dob,
+                             String contactInfo, String medicalHistory) {
+        patient.nameProperty().set(name);
+        patient.dateOfBirthProperty().set(dob);
+        patient.contactInfoProperty().set(contactInfo);
+        patient.medicalHistoryProperty().set(medicalHistory);
+        
+        showAlert("Success", "Patient information updated successfully.", 
+                 Alert.AlertType.INFORMATION);
+    }
+    
     private GridPane createInputGrid() {
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
         grid.setPadding(new Insets(10));
-
-        grid.addRow(0, new Label("Name:"), nameField);
-        grid.addRow(1, new Label("Date of Birth:"), dateOfBirthPicker);
-        grid.addRow(2, new Label("Contact Info:"), contactInfoField);
-        grid.addRow(3, new Label("Medical History:"), medicalHistoryArea);
-
+        grid.addRow(0, new Label("Patient ID (Optional):"), patientIdField);
+        grid.addRow(1, new Label("Name:"), nameField);
+        grid.addRow(2, new Label("Date of Birth:"), dateOfBirthPicker);
+        grid.addRow(3, new Label("Contact Info:"), contactInfoField);
+        grid.addRow(4, new Label("Medical History:"), medicalHistoryArea);
         return grid;
     }
-
+    
+    private void showAlert(String title, String content, Alert.AlertType alertType) {
+        Alert alert = new Alert(alertType);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+    
+    private HBox createSearchBox() {
+        HBox searchBox = new HBox(10);
+        searchBox.setAlignment(Pos.CENTER_LEFT);
+        searchBox.getChildren().addAll(
+            new Label("Search by:"),
+            searchCriteriaBox,
+            searchField
+        );
+        return searchBox;
+    }
+    
+    private void performSearch() {
+        String searchTerm = searchField.getText().toLowerCase();
+        String criteria = searchCriteriaBox.getValue();
+        
+        if (searchTerm.isEmpty()) {
+            patientTable.setItems(patients);
+            return;
+        }
+        
+        ObservableList<Patient> filteredList = FXCollections.observableArrayList();
+        for (Patient patient : patients) {
+            boolean matches = switch (criteria) {
+                case "ID" -> patient.getPatientId().toLowerCase().contains(searchTerm);
+                case "Name" -> patient.getName().toLowerCase().contains(searchTerm);
+                case "Contact Info" -> patient.getContactInfo().toLowerCase().contains(searchTerm);
+                default -> false;
+            };
+            
+            if (matches) {
+                filteredList.add(patient);
+            }
+        }
+        
+        patientTable.setItems(filteredList);
+    }
+    
+    private void startEditing(Patient patient) {
+        currentEditingPatient = patient;
+        nameField.setText(patient.getName());
+        dateOfBirthPicker.setValue(patient.getDateOfBirth());
+        contactInfoField.setText(patient.getContactInfo());
+        medicalHistoryArea.setText(patient.getMedicalHistory());
+        
+        addUpdateButton.setText("Update Patient");
+        addUpdateButton.getScene().lookup("Button:contains('Cancel')").setVisible(true);
+    }
+    
+    private void cancelEditing() {
+        currentEditingPatient = null;
+        clearInputFields();
+        addUpdateButton.setText("Add Patient");
+        addUpdateButton.getScene().lookup("Button:contains('Cancel')").setVisible(false);
+    }
+    
+    private void handleAddUpdate() {
+        String name = nameField.getText().trim();
+        LocalDate dob = dateOfBirthPicker.getValue();
+        String contactInfo = contactInfoField.getText().trim();
+        String medicalHistory = medicalHistoryArea.getText().trim();
+        
+        if (name.isEmpty() || dob == null || contactInfo.isEmpty()) {
+            showAlert("Error", "Please fill in all required fields.");
+            return;
+        }
+        
+        if (currentEditingPatient != null) {
+            // Update existing patient
+            currentEditingPatient.nameProperty().set(name);
+            currentEditingPatient.dateOfBirthProperty().set(dob);
+            currentEditingPatient.contactInfoProperty().set(contactInfo);
+            currentEditingPatient.medicalHistoryProperty().set(medicalHistory);
+            
+            showAlert("Success", "Patient information updated successfully.");
+            cancelEditing();
+        } else {
+            // Check for duplicate patient
+            Optional<Patient> existingPatient = findExistingPatient(name, dob);
+            if (existingPatient.isPresent()) {
+                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+                alert.setTitle("Duplicate Patient");
+                alert.setHeaderText("A patient with this name and date of birth already exists.");
+                alert.setContentText("Would you like to update the existing patient record?");
+                
+                alert.showAndWait().ifPresent(response -> {
+                    if (response == ButtonType.OK) {
+                        startEditing(existingPatient.get());
+                    }
+                });
+                return;
+            }
+            
+            // Add new patient
+            patients.add(new Patient(name, dob, contactInfo, medicalHistory));
+            showAlert("Success", "Patient added successfully.");
+            clearInputFields();
+        }
+    }
+    
+    private Optional<Patient> findExistingPatient(String name, LocalDate dob) {
+        return patients.stream()
+            .filter(p -> p.getName().equalsIgnoreCase(name) && p.getDateOfBirth().equals(dob))
+            .findFirst();
+    }
+    
+    private void showPasswordDialog(Patient patient) {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Authentication Required");
+        dialog.setHeaderText("Please enter password to view patient information");
+        
+        ButtonType loginButtonType = new ButtonType("Login", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(loginButtonType, ButtonType.CANCEL);
+        
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        
+        VBox content = new VBox(10);
+        content.getChildren().addAll(new Label("Password:"), passwordField);
+        dialog.getDialogPane().setContent(content);
+        
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == loginButtonType) {
+                return passwordField.getText();
+            }
+            return null;
+        });
+        
+        Optional<String> result = dialog.showAndWait();
+        result.ifPresent(password -> {
+            if (password.equals(SYSTEM_PASSWORD)) {
+                viewPatientInformation(patient);
+            } else {
+                showAlert("Error", "Incorrect password!");
+            }
+        });
+    }
+    
     private void addPatient() {
         String name = nameField.getText().trim();
         LocalDate dob = dateOfBirthPicker.getValue();
         String contactInfo = contactInfoField.getText().trim();
         String medicalHistory = medicalHistoryArea.getText().trim();
-
+        
         if (name.isEmpty() || dob == null || contactInfo.isEmpty()) {
             showAlert("Error", "Please fill in all required fields.");
             return;
         }
-
+        
         patients.add(new Patient(name, dob, contactInfo, medicalHistory));
         clearInputFields();
     }
-
+    
     private void clearInputFields() {
         nameField.clear();
         dateOfBirthPicker.setValue(null);
         contactInfoField.clear();
         medicalHistoryArea.clear();
     }
-
+    
     private void showAlert(String title, String content) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
@@ -388,10 +777,10 @@ class DoctorManagementView extends VBox {
         
         // Layout
         GridPane inputGrid = createInputGrid();
-        Button addButton = new Button("Add Doctor");
-        addButton.setOnAction(e -> addDoctor());
+        Button addUpdateButton = new Button("Add Doctor");
+        addUpdateButton.setOnAction(e -> addDoctor());
         
-        getChildren().addAll(inputGrid, addButton, doctorTable);
+        getChildren().addAll(inputGrid, addUpdateButton, doctorTable);
         setSpacing(10);
         setPadding(new Insets(10));
     }
@@ -544,10 +933,10 @@ class BillingView extends VBox {
         
         // Layout
         GridPane inputGrid = createInputGrid();
-        Button addButton = new Button("Add Billing Record");
-        addButton.setOnAction(e -> addBillingRecord());
+        Button addUpdateButton = new Button("Add Billing Record");
+        addUpdateButton.setOnAction(e -> addBillingRecord());
         
-        getChildren().addAll(inputGrid, addButton, billingTable);
+        getChildren().addAll(inputGrid, addUpdateButton, billingTable);
         setSpacing(10);
         setPadding(new Insets(10));
 

@@ -1,20 +1,15 @@
 import java.util.*;
-import javafx.application.Application;
-import javafx.scene.Scene;
+import javafx.application.*;
+import javafx.stage.*;
+import javafx.scene.*;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.chart.*;
-import javafx.stage.Stage;
-import javafx.stage.Modality;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-import javafx.collections.ListChangeListener;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.SimpleObjectProperty;
+import javafx.collections.*;
+import javafx.geometry.*;
+import java.time.*;
+import java.time.format.*;
+import javafx.beans.property.*;
 
 public class SHMS extends Application {
     // Shared data stores
@@ -84,7 +79,6 @@ class Patient {
         this.medicalHistory = new javafx.beans.property.SimpleStringProperty(medicalHistory);
     }
 
-    // Existing methods
     public String getName() {
         return name.get();
     }
@@ -109,7 +103,6 @@ class Patient {
         return patientId;
     }
 
-    // Add new getter methods
     public String getPatientId() {
         return patientId.get();
     }
@@ -127,7 +120,7 @@ class Patient {
     }
 
     private String generatePatientId() {
-        // Simple ID generation - you might want to implement a more sophisticated system
+        // Simple ID generation
         return "P" + System.currentTimeMillis() % 10000;
     }
 
@@ -190,8 +183,6 @@ class PatientManagementView extends VBox {
         searchField.textProperty().addListener((obs, oldVal, newVal) -> performSearch());
     }
     
-    // Removed duplicate showPatientInformation method
-    
     private void viewPatientInformation(Patient patient) {
         Stage infoStage = new Stage();
         infoStage.initModality(Modality.APPLICATION_MODAL);
@@ -200,7 +191,6 @@ class PatientManagementView extends VBox {
         VBox content = new VBox(10);
         content.setPadding(new Insets(15));
         
-        // Create editable fields
         TextField nameField = new TextField(patient.getName());
         DatePicker dobPicker = new DatePicker(patient.getDateOfBirth());
         TextField contactField = new TextField(patient.getContactInfo());
@@ -215,10 +205,18 @@ class PatientManagementView extends VBox {
         historyArea.setEditable(false);
         
         Button editButton = new Button("Edit");
-        editButton.setOnAction(e -> showPasswordDialogForEdit(nameField, dobPicker, 
-                                                            contactField, historyArea));
-        
         Button saveButton = new Button("Save Changes");
+        Button closeButton = new Button("Close");
+        
+        // Create button box first so we can reference it
+        HBox buttonBox = new HBox(10, editButton, saveButton, closeButton);
+        
+        // Set up edit button
+        editButton.setOnAction(e -> showPasswordDialogForEdit(nameField, dobPicker, 
+                                                            contactField, historyArea, 
+                                                            saveButton));
+        
+        // Set up save button
         saveButton.setDisable(true);
         saveButton.setOnAction(e -> {
             updatePatient(patient, nameField.getText(), dobPicker.getValue(),
@@ -226,10 +224,8 @@ class PatientManagementView extends VBox {
             infoStage.close();
         });
         
-        Button closeButton = new Button("Close");
+        // Set up close button
         closeButton.setOnAction(e -> infoStage.close());
-        
-        HBox buttonBox = new HBox(10, editButton, saveButton, closeButton);
         
         content.getChildren().addAll(
             new Label("Patient ID: " + patient.getPatientId()),
@@ -244,8 +240,6 @@ class PatientManagementView extends VBox {
         infoStage.setScene(scene);
         infoStage.showAndWait();
     }
-
-    // Removed duplicate createInputGrid method
     
     private void setupPatientTable() {
         // ID column
@@ -264,30 +258,28 @@ class PatientManagementView extends VBox {
         TableColumn<Patient, String> contactCol = new TableColumn<>("Contact Info");
         contactCol.setCellValueFactory(cellData -> cellData.getValue().contactInfoProperty());
         
-        // Actions column
+        // Actions column - Fixed to always show View button regardless of ID type
         TableColumn<Patient, Void> actionsCol = new TableColumn<>("Actions");
-        actionsCol.setCellFactory(column -> {
-            return new TableCell<>() {
-                private final Button viewButton = new Button("View");
-                
-                {
-                    viewButton.setOnAction(event -> {
-                        Patient patient = getTableView().getItems().get(getIndex());
-                        showPasswordDialog(patient);
-                    });
-                    
+        actionsCol.setCellFactory(column -> new TableCell<>() {
+            private final Button viewButton = new Button("View");
+            {
+                viewButton.setOnAction(event -> {
+                    Patient patient = getTableView().getItems().get(getIndex());
+                    showPasswordDialog(patient);
+                });
+            }
+            
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                } else {
                     setGraphic(viewButton);
                 }
-                
-                @Override
-                protected void updateItem(Void item, boolean empty) {
-                    super.updateItem(item, empty);
-                    setGraphic(empty ? null : getGraphic());
-                }
-            };
+            }
         });
         
-        // Add columns directly to the table
         patientTable.getColumns().addAll(idCol, nameCol, dobCol, contactCol, actionsCol);
         patientTable.setItems(patients);
     }
@@ -331,7 +323,8 @@ class PatientManagementView extends VBox {
     }
     
     private void showPasswordDialogForEdit(TextField nameField, DatePicker dobPicker,
-                                         TextField contactField, TextArea historyArea) {
+                                         TextField contactField, TextArea historyArea,
+                                         Button saveButton) {
         Dialog<String> dialog = new Dialog<>();
         dialog.setTitle("Authentication Required");
         dialog.setHeaderText("Please enter password to edit patient information");
@@ -356,7 +349,7 @@ class PatientManagementView extends VBox {
         Optional<String> result = dialog.showAndWait();
         result.ifPresent(password -> {
             if (password.equals(SYSTEM_PASSWORD)) {
-                enableEditing(nameField, dobPicker, contactField, historyArea);
+                enableEditing(nameField, dobPicker, contactField, historyArea, saveButton);
             } else {
                 showAlert("Error", "Incorrect password!", Alert.AlertType.ERROR);
             }
@@ -364,18 +357,13 @@ class PatientManagementView extends VBox {
     }
     
     private void enableEditing(TextField nameField, DatePicker dobPicker,
-                             TextField contactField, TextArea historyArea) {
+                             TextField contactField, TextArea historyArea,
+                             Button saveButton) {
         nameField.setEditable(true);
         dobPicker.setEditable(true);
         contactField.setEditable(true);
         historyArea.setEditable(true);
-        
-        // Find the save button and enable it
-        Scene scene = nameField.getScene();
-        Button saveButton = (Button) scene.lookup("Button:contains('Save Changes')");
-        if (saveButton != null) {
-            saveButton.setDisable(false);
-        }
+        saveButton.setDisable(false);
     }
     
     private void updatePatient(Patient patient, String name, LocalDate dob,
@@ -712,7 +700,7 @@ class AppointmentSchedulingView extends VBox {
             return;
         }
 
-        Appointment newAppointment = new Appointment(patient.getName(), doctor.getName(), date, time);
+        Appointment newAppointment = new Appointment(patient.getPatientId(), patient.getName(), doctor.getName(), date, time);
         appointments.add(newAppointment);
         showAlert(Alert.AlertType.INFORMATION, "Success", "Appointment scheduled successfully.");
         clearInputFields();
@@ -795,7 +783,6 @@ class DoctorManagementView extends VBox {
         TableColumn<Doctor, String> contactCol = new TableColumn<>("Contact Info");
         contactCol.setCellValueFactory(cellData -> cellData.getValue().contactInfoProperty());
         
-        // Add delete button column
         TableColumn<Doctor, Void> actionCol = new TableColumn<>("Actions");
         actionCol.setCellFactory(column -> new TableCell<>() {
             private final Button deleteButton = new Button("Remove");
@@ -969,7 +956,6 @@ class BillingView extends VBox {
         TableColumn<BillingRecord, LocalDate> dateCol = new TableColumn<>("Date");
         dateCol.setCellValueFactory(cellData -> cellData.getValue().dateProperty());
         
-        // Add delete button column
         TableColumn<BillingRecord, Void> actionCol = new TableColumn<>("Actions");
         actionCol.setCellFactory(column -> new TableCell<>() {
             private final Button deleteButton = new Button("Delete");
@@ -1028,7 +1014,7 @@ class BillingView extends VBox {
                 return;
             }
             
-            BillingRecord newRecord = new BillingRecord(patient.getName(), service, amount, date);
+            BillingRecord newRecord = new BillingRecord(patient.getPatientId(), patient.getName(), service, amount, date);
             billingRecords.add(newRecord);
             showAlert(Alert.AlertType.INFORMATION, "Success", "Billing record added successfully.");
             clearInputFields();
@@ -1068,16 +1054,22 @@ class BillingView extends VBox {
 }
 
 class BillingRecord {
+    private final javafx.beans.property.StringProperty patientId;
     private final javafx.beans.property.StringProperty patient;
     private final javafx.beans.property.StringProperty service;
     private final javafx.beans.property.DoubleProperty amount;
     private final javafx.beans.property.ObjectProperty<LocalDate> date;
 
-    public BillingRecord(String patient, String service, double amount, LocalDate date) {
+    public BillingRecord(String patientId, String patient, String service, double amount, LocalDate date) {
+        this.patientId = new javafx.beans.property.SimpleStringProperty(patientId);
         this.patient = new javafx.beans.property.SimpleStringProperty(patient);
         this.service = new javafx.beans.property.SimpleStringProperty(service);
         this.amount = new javafx.beans.property.SimpleDoubleProperty(amount);
         this.date = new javafx.beans.property.SimpleObjectProperty<>(date);
+    }
+
+    public String getPatientId() {
+        return patientId.get();
     }
 
     public String getPatient() {
@@ -1113,7 +1105,8 @@ class AnalyticsView extends VBox {
     private final ComboBox<String> reportTypeComboBox;
     private final DatePicker startDatePicker;
     private final DatePicker endDatePicker;
-    private final BarChart<String, Number> chart;
+    private final ComboBox<String> patientSelector;
+    private final VBox chartContainer;
     private final ObservableList<Patient> patients;
     private final ObservableList<Doctor> doctors;
     private final ObservableList<Appointment> appointments;
@@ -1130,22 +1123,29 @@ class AnalyticsView extends VBox {
 
         // Initialize components
         reportTypeComboBox = new ComboBox<>();
-        reportTypeComboBox.getItems().addAll("Patient Inflow", "Doctor Performance", "Revenue Analysis");
-        reportTypeComboBox.setValue("Patient Inflow");
+        reportTypeComboBox.getItems().addAll(
+            "Monthly Patient Visits",
+            "Doctor Workload Distribution",
+            "Monthly Revenue Trend",
+            "Service Type Distribution",
+            "Individual Patient History"
+        );
+        reportTypeComboBox.setValue("Monthly Patient Visits");
         
-        startDatePicker = new DatePicker(LocalDate.now().minusMonths(1));
+        startDatePicker = new DatePicker(LocalDate.now().minusMonths(6));
         endDatePicker = new DatePicker(LocalDate.now());
         
-        CategoryAxis xAxis = new CategoryAxis();
-        NumberAxis yAxis = new NumberAxis();
-        chart = new BarChart<>(xAxis, yAxis);
-        chart.setTitle("Analytics Report");
-        xAxis.setLabel("Category");
-        yAxis.setLabel("Value");
+        // Patient selector for individual analytics
+        patientSelector = new ComboBox<>();
+        updatePatientSelector();
+        patientSelector.setVisible(false);
+        
+        chartContainer = new VBox();
+        chartContainer.setMinHeight(400);
 
         initializeLayout();
         setupEventHandlers();
-        updateChart(); // Initial chart update
+        updateChart();
     }
 
     private void initializeLayout() {
@@ -1160,18 +1160,20 @@ class AnalyticsView extends VBox {
         inputGrid.add(startDatePicker, 1, 1);
         inputGrid.add(new Label("End Date:"), 0, 2);
         inputGrid.add(endDatePicker, 1, 2);
+        inputGrid.add(new Label("Patient:"), 0, 3);
+        inputGrid.add(patientSelector, 1, 3);
 
         Button generateButton = new Button("Generate Report");
         generateButton.setOnAction(e -> updateChart());
-        inputGrid.add(generateButton, 1, 3);
+        inputGrid.add(generateButton, 1, 4);
 
-        this.getChildren().addAll(inputGrid, chart);
+        this.getChildren().addAll(inputGrid, chartContainer);
         this.setSpacing(20);
         this.setPadding(new Insets(10));
     }
 
     private void setupEventHandlers() {
-        // Validate date range
+        // Date validation
         endDatePicker.setDayCellFactory(picker -> new DateCell() {
             @Override
             public void updateItem(LocalDate date, boolean empty) {
@@ -1188,11 +1190,29 @@ class AnalyticsView extends VBox {
             }
         });
 
-        // Add listeners for data changes
-        patients.addListener((ListChangeListener<Patient>) c -> updateChart());
+        // Show/hide patient selector based on report type
+        reportTypeComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            patientSelector.setVisible(newVal.equals("Individual Patient History"));
+            updateChart();
+        });
+
+        // Update on data changes
+        patients.addListener((ListChangeListener<Patient>) c -> {
+            updatePatientSelector();
+            updateChart();
+        });
         doctors.addListener((ListChangeListener<Doctor>) c -> updateChart());
         appointments.addListener((ListChangeListener<Appointment>) c -> updateChart());
         billingRecords.addListener((ListChangeListener<BillingRecord>) c -> updateChart());
+    }
+
+    private void updatePatientSelector() {
+        patientSelector.getItems().clear();
+        patients.forEach(patient -> 
+            patientSelector.getItems().add(patient.getName() + " (ID: " + patient.getPatientId() + ")"));
+        if (!patientSelector.getItems().isEmpty()) {
+            patientSelector.setValue(patientSelector.getItems().get(0));
+        }
     }
 
     private void updateChart() {
@@ -1205,87 +1225,224 @@ class AnalyticsView extends VBox {
             return;
         }
 
-        chart.getData().clear();
-        XYChart.Series<String, Number> series = new XYChart.Series<>();
-        series.setName(reportType);
+        chartContainer.getChildren().clear();
 
         switch (reportType) {
-            case "Patient Inflow":
-                generatePatientInflowData(series, startDate, endDate);
+            case "Monthly Patient Visits":
+                generateMonthlyPatientVisitsChart(startDate, endDate);
                 break;
-            case "Doctor Performance":
-                generateDoctorPerformanceData(series, startDate, endDate);
+            case "Doctor Workload Distribution":
+                generateDoctorWorkloadChart(startDate, endDate);
                 break;
-            case "Revenue Analysis":
-                generateRevenueData(series, startDate, endDate);
+            case "Monthly Revenue Trend":
+                generateMonthlyRevenueChart(startDate, endDate);
+                break;
+            case "Service Type Distribution":
+                generateServiceDistributionChart(startDate, endDate);
+                break;
+            case "Individual Patient History":
+                generatePatientHistoryChart(startDate, endDate);
                 break;
         }
-
-        chart.getData().add(series);
     }
 
-    private void generatePatientInflowData(XYChart.Series<String, Number> series, 
-                                         LocalDate startDate, 
-                                         LocalDate endDate) {
-        // Count appointments by month in the date range
-        Map<String, Integer> monthlyPatients = new HashMap<>();
+    private void generateMonthlyPatientVisitsChart(LocalDate startDate, LocalDate endDate) {
+        // Create line chart for trending
+        CategoryAxis xAxis = new CategoryAxis();
+        NumberAxis yAxis = new NumberAxis();
+        LineChart<String, Number> lineChart = new LineChart<>(xAxis, yAxis);
         
+        lineChart.setTitle("Monthly Patient Visits");
+        xAxis.setLabel("Month");
+        yAxis.setLabel("Number of Visits");
+
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        series.setName("Patient Visits");
+
+        // Group appointments by month
+        Map<YearMonth, Integer> monthlyVisits = new TreeMap<>();
+        YearMonth current = YearMonth.from(startDate);
+        YearMonth end = YearMonth.from(endDate);
+
+        while (!current.isAfter(end)) {
+            monthlyVisits.put(current, 0);
+            current = current.plusMonths(1);
+        }
+
         appointments.stream()
-            .filter(apt -> !apt.dateProperty().get().isBefore(startDate) && 
+            .filter(apt -> !apt.dateProperty().get().isBefore(startDate) &&
                           !apt.dateProperty().get().isAfter(endDate))
             .forEach(apt -> {
-                String month = apt.dateProperty().get().getMonth().toString();
-                monthlyPatients.merge(month, 1, Integer::sum);
+                YearMonth month = YearMonth.from(apt.dateProperty().get());
+                monthlyVisits.merge(month, 1, Integer::sum);
             });
 
-        // Add data to series
-        monthlyPatients.entrySet().stream()
-            .sorted(Map.Entry.comparingByKey())
-            .forEach(entry -> series.getData().add(
-                new XYChart.Data<>(entry.getKey(), entry.getValue())
-            ));
+        monthlyVisits.forEach((month, count) ->
+            series.getData().add(new XYChart.Data<>(month.format(DateTimeFormatter.ofPattern("MMM yyyy")), count)));
+
+        lineChart.getData().add(series);
+        chartContainer.getChildren().add(lineChart);
     }
 
-    private void generateDoctorPerformanceData(XYChart.Series<String, Number> series, 
-                                             LocalDate startDate, 
-                                             LocalDate endDate) {
-        // Count appointments per doctor
-        Map<String, Integer> doctorAppointments = new HashMap<>();
+    private void generateDoctorWorkloadChart(LocalDate startDate, LocalDate endDate) {
+        // Create pie chart for workload distribution
+        PieChart pieChart = new PieChart();
+        pieChart.setTitle("Doctor Workload Distribution");
+
+        Map<String, Integer> doctorWorkload = new HashMap<>();
         
         appointments.stream()
-            .filter(apt -> !apt.dateProperty().get().isBefore(startDate) && 
+            .filter(apt -> !apt.dateProperty().get().isBefore(startDate) &&
                           !apt.dateProperty().get().isAfter(endDate))
-            .forEach(apt -> {
-                String doctorName = apt.doctorProperty().get();
-                doctorAppointments.merge(doctorName, 1, Integer::sum);
-            });
+            .forEach(apt -> doctorWorkload.merge(apt.doctorProperty().get(), 1, Integer::sum));
 
-        // Add data to series
-        doctorAppointments.forEach((doctor, count) -> 
-            series.getData().add(new XYChart.Data<>(doctor, count)));
+        doctorWorkload.forEach((doctor, count) ->
+            pieChart.getData().add(new PieChart.Data(doctor + " (" + count + " appointments)", count)));
+
+        pieChart.setLabelsVisible(true);
+        pieChart.setLegendVisible(true);
+        chartContainer.getChildren().add(pieChart);
     }
 
-    private void generateRevenueData(XYChart.Series<String, Number> series, 
-                                   LocalDate startDate, 
-                                   LocalDate endDate) {
-        // Calculate total revenue by service type
-        Map<String, Double> serviceRevenue = new HashMap<>();
+    private void generateMonthlyRevenueChart(LocalDate startDate, LocalDate endDate) {
+        CategoryAxis xAxis = new CategoryAxis();
+        NumberAxis yAxis = new NumberAxis();
+        StackedBarChart<String, Number> stackedChart = new StackedBarChart<>(xAxis, yAxis);
+        
+        stackedChart.setTitle("Monthly Revenue by Service Type");
+        xAxis.setLabel("Month");
+        yAxis.setLabel("Revenue ($)");
+
+        // Create series for each service type
+        Map<String, XYChart.Series<String, Number>> seriesMap = new HashMap<>();
         
         billingRecords.stream()
-            .filter(record -> !record.dateProperty().get().isBefore(startDate) && 
+            .filter(record -> !record.dateProperty().get().isBefore(startDate) &&
                             !record.dateProperty().get().isAfter(endDate))
             .forEach(record -> {
                 String service = record.serviceProperty().get();
-                serviceRevenue.merge(service, record.amountProperty().get(), Double::sum);
+                String month = YearMonth.from(record.dateProperty().get())
+                    .format(DateTimeFormatter.ofPattern("MMM yyyy"));
+                double amount = record.amountProperty().get();
+
+                seriesMap.computeIfAbsent(service, k -> {
+                    XYChart.Series<String, Number> series = new XYChart.Series<>();
+                    series.setName(k);
+                    return series;
+                }).getData().add(new XYChart.Data<>(month, amount));
             });
 
-        // Add data to series
-        serviceRevenue.entrySet().stream()
-            .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
-            .limit(5) // Show top 5 services by revenue
-            .forEach(entry -> series.getData().add(
-                new XYChart.Data<>(entry.getKey(), entry.getValue())
-            ));
+        stackedChart.getData().addAll(seriesMap.values());
+        chartContainer.getChildren().add(stackedChart);
+    }
+
+    private void generateServiceDistributionChart(LocalDate startDate, LocalDate endDate) {
+        // Create donut chart for service distribution
+        PieChart pieChart = new PieChart();
+        pieChart.setTitle("Service Type Distribution");
+
+        Map<String, Double> serviceRevenue = new HashMap<>();
+        
+        billingRecords.stream()
+            .filter(record -> !record.dateProperty().get().isBefore(startDate) &&
+                            !record.dateProperty().get().isAfter(endDate))
+            .forEach(record -> 
+                serviceRevenue.merge(record.serviceProperty().get(), 
+                                   record.amountProperty().get(), 
+                                   Double::sum));
+
+        serviceRevenue.forEach((service, amount) ->
+            pieChart.getData().add(new PieChart.Data(
+                service + " ($" + String.format("%.2f", amount) + ")", 
+                amount)));
+
+        pieChart.setLabelsVisible(true);
+        pieChart.setLegendVisible(true);
+        chartContainer.getChildren().add(pieChart);
+    }
+
+    private void generatePatientHistoryChart(LocalDate startDate, LocalDate endDate) {
+        if (patientSelector.getValue() == null) {
+            showAlert(Alert.AlertType.ERROR, "Error", "Please select a patient.");
+            return;
+        }
+
+        // Extract patient ID from selector value
+        String patientId = patientSelector.getValue().split("ID: ")[1].replace(")", "");
+
+        VBox patientStats = new VBox(10);
+        patientStats.setPadding(new Insets(10));
+
+        // Create timeline chart for patient visits
+        CategoryAxis xAxis = new CategoryAxis();
+        NumberAxis yAxis = new NumberAxis();
+        LineChart<String, Number> visitChart = new LineChart<>(xAxis, yAxis);
+        
+        visitChart.setTitle("Visit History");
+        XYChart.Series<String, Number> visitSeries = new XYChart.Series<>();
+        visitSeries.setName("Visits");
+
+        // Create bar chart for expenses
+        CategoryAxis xAxis2 = new CategoryAxis();
+        NumberAxis yAxis2 = new NumberAxis();
+        BarChart<String, Number> expenseChart = new BarChart<>(xAxis2, yAxis2);
+        
+        expenseChart.setTitle("Monthly Expenses");
+        XYChart.Series<String, Number> expenseSeries = new XYChart.Series<>();
+        expenseSeries.setName("Expenses");
+
+        // Process patient data
+        Map<YearMonth, Integer> monthlyVisits = new TreeMap<>();
+        Map<YearMonth, Double> monthlyExpenses = new TreeMap<>();
+
+        // Get patient's appointments
+        appointments.stream()
+            .filter(apt -> apt.patientIdProperty().get().equals(patientId) &&
+                          !apt.dateProperty().get().isBefore(startDate) &&
+                          !apt.dateProperty().get().isAfter(endDate))
+            .forEach(apt -> {
+                YearMonth month = YearMonth.from(apt.dateProperty().get());
+                monthlyVisits.merge(month, 1, Integer::sum);
+            });
+
+        // Get patient's billing records
+        billingRecords.stream()
+            .filter(record -> record.getPatientId().equals(patientId) &&
+                            !record.dateProperty().get().isBefore(startDate) &&
+                            !record.dateProperty().get().isAfter(endDate))
+            .forEach(record -> {
+                YearMonth month = YearMonth.from(record.dateProperty().get());
+                monthlyExpenses.merge(month, record.amountProperty().get(), Double::sum);
+            });
+
+        // Add data to charts
+        monthlyVisits.forEach((month, count) ->
+            visitSeries.getData().add(new XYChart.Data<>(
+                month.format(DateTimeFormatter.ofPattern("MMM yyyy")), count)));
+
+        monthlyExpenses.forEach((month, amount) ->
+            expenseSeries.getData().add(new XYChart.Data<>(
+                month.format(DateTimeFormatter.ofPattern("MMM yyyy")), amount)));
+
+        visitChart.getData().add(visitSeries);
+        expenseChart.getData().add(expenseSeries);
+
+        // Add summary statistics
+        Label summaryLabel = new Label(String.format(
+            "Summary Statistics:\n" +
+            "Total Visits: %d\n" +
+            "Total Expenses: $%.2f\n" +
+            "Average Monthly Visits: %.1f\n" +
+            "Average Monthly Expense: $%.2f",
+            monthlyVisits.values().stream().mapToInt(Integer::intValue).sum(),
+            monthlyExpenses.values().stream().mapToDouble(Double::doubleValue).sum(),
+            monthlyVisits.values().stream().mapToInt(Integer::intValue).average().orElse(0),
+            monthlyExpenses.values().stream().mapToDouble(Double::doubleValue).average().orElse(0)
+        ));
+        summaryLabel.setStyle("-fx-font-weight: bold;");
+
+        patientStats.getChildren().addAll(summaryLabel, visitChart, expenseChart);
+        chartContainer.getChildren().add(patientStats);
     }
 
     private void showAlert(Alert.AlertType alertType, String title, String content) {
@@ -1298,12 +1455,14 @@ class AnalyticsView extends VBox {
 }
 
 class Appointment {
+    private final SimpleStringProperty patientId;
     private final SimpleStringProperty patientName;
     private final SimpleStringProperty doctorName;
     private final SimpleObjectProperty<LocalDate> date;
     private final SimpleObjectProperty<LocalTime> time;
 
-    public Appointment(String patientName, String doctorName, LocalDate date, LocalTime time) {
+    public Appointment(String patientId, String patientName, String doctorName, LocalDate date, LocalTime time) {
+        this.patientId = new SimpleStringProperty(patientId);
         this.patientName = new SimpleStringProperty(patientName);
         this.doctorName = new SimpleStringProperty(doctorName);
         this.date = new SimpleObjectProperty<>(date);
@@ -1311,6 +1470,9 @@ class Appointment {
     }
 
     // Property methods
+    public StringProperty patientIdProperty() {
+        return patientId;
+    }
     public SimpleStringProperty patientProperty() {
         return patientName;
     }
@@ -1327,7 +1489,6 @@ class Appointment {
         return time;
     }
 
-    // Optional: regular getters
     public String getPatientName() {
         return patientName.get();
     }

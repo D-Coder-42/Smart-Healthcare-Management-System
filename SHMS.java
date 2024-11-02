@@ -61,7 +61,7 @@ class Patient {
     private final javafx.beans.property.ObjectProperty<LocalDate> dateOfBirth;
     private final javafx.beans.property.StringProperty contactInfo;
     private final javafx.beans.property.StringProperty medicalHistory;
-    private final javafx.beans.property.StringProperty patientId; // Changed to StringProperty
+    private final javafx.beans.property.StringProperty patientId;
 
     public Patient(String name, LocalDate dateOfBirth, String contactInfo, String medicalHistory) {
         this.name = new javafx.beans.property.SimpleStringProperty(name);
@@ -126,7 +126,7 @@ class Patient {
 
     @Override
     public String toString() {
-        return getName(); // For ComboBox display
+        return getName();
     }
 }
 
@@ -179,7 +179,6 @@ class PatientManagementView extends VBox {
         setSpacing(10);
         setPadding(new Insets(10));
         
-        // Add search listener
         searchField.textProperty().addListener((obs, oldVal, newVal) -> performSearch());
     }
     
@@ -208,15 +207,13 @@ class PatientManagementView extends VBox {
         Button saveButton = new Button("Save Changes");
         Button closeButton = new Button("Close");
         
-        // Create button box first so we can reference it
         HBox buttonBox = new HBox(10, editButton, saveButton, closeButton);
         
-        // Set up edit button
+        // Set up buttons
         editButton.setOnAction(e -> showPasswordDialogForEdit(nameField, dobPicker, 
                                                             contactField, historyArea, 
                                                             saveButton));
         
-        // Set up save button
         saveButton.setDisable(true);
         saveButton.setOnAction(e -> {
             updatePatient(patient, nameField.getText(), dobPicker.getValue(),
@@ -224,7 +221,6 @@ class PatientManagementView extends VBox {
             infoStage.close();
         });
         
-        // Set up close button
         closeButton.setOnAction(e -> infoStage.close());
         
         content.getChildren().addAll(
@@ -258,7 +254,7 @@ class PatientManagementView extends VBox {
         TableColumn<Patient, String> contactCol = new TableColumn<>("Contact Info");
         contactCol.setCellValueFactory(cellData -> cellData.getValue().contactInfoProperty());
         
-        // Actions column - Fixed to always show View button regardless of ID type
+        // Actions column
         TableColumn<Patient, Void> actionsCol = new TableColumn<>("Actions");
         actionsCol.setCellFactory(column -> new TableCell<>() {
             private final Button viewButton = new Button("View");
@@ -312,7 +308,6 @@ class PatientManagementView extends VBox {
             return;
         }
         
-        // Add new patient with custom or generated ID
         Patient newPatient = customId.isEmpty() ? 
             new Patient(name, dob, contactInfo, medicalHistory) :
             new Patient(customId, name, dob, contactInfo, medicalHistory);
@@ -489,8 +484,7 @@ class PatientManagementView extends VBox {
                 });
                 return;
             }
-            
-            // Add new patient
+
             patients.add(new Patient(name, dob, contactInfo, medicalHistory));
             showAlert("Success", "Patient added successfully.");
             clearInputFields();
@@ -643,7 +637,6 @@ class AppointmentSchedulingView extends VBox {
         TableColumn<Appointment, LocalTime> timeCol = new TableColumn<>("Time");
         timeCol.setCellValueFactory(cellData -> cellData.getValue().timeProperty());
         
-        // Add delete button column
         TableColumn<Appointment, Void> actionCol = new TableColumn<>("Actions");
         actionCol.setCellFactory(column -> new TableCell<>() {
             private final Button deleteButton = new Button("Cancel");
@@ -873,7 +866,6 @@ class Doctor {
         this.contactInfo = new javafx.beans.property.SimpleStringProperty(contactInfo);
     }
 
-    // Add getter for ComboBox display
     public String getName() {
         return name.get();
     }
@@ -892,7 +884,7 @@ class Doctor {
 
     @Override
     public String toString() {
-        return getName(); // For ComboBox display
+        return getName();
     }
 }
 
@@ -1190,7 +1182,6 @@ class AnalyticsView extends VBox {
             }
         });
 
-        // Show/hide patient selector based on report type
         reportTypeComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             patientSelector.setVisible(newVal.equals("Individual Patient History"));
             updateChart();
@@ -1367,7 +1358,6 @@ class AnalyticsView extends VBox {
             return;
         }
 
-        // Extract patient ID from selector value
         String patientId = patientSelector.getValue().split("ID: ")[1].replace(")", "");
 
         VBox patientStats = new VBox(10);
@@ -1415,7 +1405,6 @@ class AnalyticsView extends VBox {
                 monthlyExpenses.merge(month, record.amountProperty().get(), Double::sum);
             });
 
-        // Add data to charts
         monthlyVisits.forEach((month, count) ->
             visitSeries.getData().add(new XYChart.Data<>(
                 month.format(DateTimeFormatter.ofPattern("MMM yyyy")), count)));
@@ -1469,7 +1458,6 @@ class Appointment {
         this.time = new SimpleObjectProperty<>(time);
     }
 
-    // Property methods
     public StringProperty patientIdProperty() {
         return patientId;
     }

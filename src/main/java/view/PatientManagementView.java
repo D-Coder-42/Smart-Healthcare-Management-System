@@ -11,6 +11,7 @@ import javafx.stage.Stage;
 import javafx.stage.Modality;
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.Arrays;
 
 public class PatientManagementView extends VBox {
     private final TextField nameField;
@@ -102,7 +103,7 @@ public class PatientManagementView extends VBox {
             }
         });
         
-        patientTable.getColumns().addAll(idCol, nameCol, dobCol, contactCol, actionsCol);
+        patientTable.getColumns().addAll(Arrays.asList(idCol, nameCol, dobCol, contactCol, actionsCol));
         patientTable.setItems(patients);
     }
     
@@ -378,8 +379,8 @@ public class PatientManagementView extends VBox {
     medicalHistoryArea.clear();
     }
 
-    private void showAlert(String title, String content) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
+    private void showAlert(Alert.AlertType alertType, String title, String content) {
+        Alert alert = new Alert(alertType);
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(content);

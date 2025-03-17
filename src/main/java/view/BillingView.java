@@ -6,6 +6,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import java.time.LocalDate;
+import java.util.Arrays;
 
 public class BillingView extends VBox {
     private final ComboBox<Patient> patientComboBox;
@@ -81,7 +82,7 @@ public class BillingView extends VBox {
             }
         });
 
-        billingTable.getColumns().addAll(patientCol, serviceCol, amountCol, dateCol, actionCol);
+        billingTable.getColumns().addAll(Arrays.asList(patientCol, serviceCol, amountCol, dateCol, actionCol));
         billingTable.setItems(billingRecords);
     }
 

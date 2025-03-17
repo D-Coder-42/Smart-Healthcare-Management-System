@@ -7,6 +7,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Arrays;
 
 public class AppointmentSchedulingView extends VBox {
     private final ComboBox<Patient> patientComboBox;
@@ -97,7 +98,7 @@ public class AppointmentSchedulingView extends VBox {
             }
         });
 
-        appointmentTable.getColumns().addAll(patientCol, doctorCol, dateCol, timeCol, actionCol);
+        appointmentTable.getColumns().addAll(Arrays.asList(patientCol, doctorCol, dateCol, timeCol, actionCol));
         appointmentTable.setItems(appointments);
     }
 

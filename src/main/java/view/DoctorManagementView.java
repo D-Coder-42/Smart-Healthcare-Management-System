@@ -5,6 +5,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import java.util.Arrays;
 
 public class DoctorManagementView extends VBox {
     private final TextField nameField;
@@ -61,7 +62,7 @@ public class DoctorManagementView extends VBox {
             }
         });
         
-        doctorTable.getColumns().addAll(nameCol, specializationCol, contactCol, actionCol);
+        doctorTable.getColumns().addAll(Arrays.asList(nameCol, specializationCol, contactCol, actionCol));
         doctorTable.setItems(doctors);
     }
 
